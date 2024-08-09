@@ -1,194 +1,45 @@
 #pragma once
+#include "detail.hpp"
+
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace sdaineka
 {
-namespace v1
-{
-template<typename>
-class Delegate;
-
 template<typename TReturn, typename... TArgs>
-class Delegate<TReturn(TArgs...)>
+struct DelegateStorageStackSize
 {
-public:
-    template<typename... TBindArgs>
-    using GlobalFuncPtr = TReturn (*)(TArgs..., TBindArgs...);
-    template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., TBindArgs...);
-    template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., TBindArgs...) const;
-
-private:
-    class StorageBase
+    static constexpr std::size_t size()
     {
-    public:
-        virtual ~StorageBase()
-        {
-        }
-        virtual TReturn operator()(TArgs&&... args) const = 0;
-    };
-
-    template<typename... TBindArgs>
-    class GlobalFuncStorage : public StorageBase
-    {
-    public:
-        GlobalFuncStorage(const GlobalFuncPtr<TBindArgs...> func, TBindArgs&&... bindArgs)
-            : m_func(func)
-            , m_bindArgs(std::forward<TBindArgs>(bindArgs)...)
-        {
-        }
-
-        TReturn operator()(TArgs&&... args) const override
-        {
-            return Invoke(std::forward<TArgs>(args)..., std::make_index_sequence<sizeof...(TBindArgs)>{});
-        }
-
-    private:
-        template<std::size_t... I>
-        TReturn Invoke(TArgs&&... args, std::index_sequence<I...>) const
-        {
-            return std::invoke(m_func, std::forward<TArgs>(args)..., std::get<I>(m_bindArgs)...);
-        }
-
-        GlobalFuncPtr<TBindArgs...> m_func;
-        std::tuple<TBindArgs...> m_bindArgs;
-    };
-
-    template<typename TClass, typename... TBindArgs>
-    class MemberDelegateStorage : public StorageBase
-    {
-    public:
-        MemberDelegateStorage(TClass* cls, const MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-            : m_cls(cls)
-            , m_func(func)
-            , m_bindArgs(std::forward<TBindArgs>(bindArgs)...)
-        {
-        }
-
-        TReturn operator()(TArgs&&... args) const override
-        {
-            return Invoke(std::forward<TArgs>(args)..., std::make_index_sequence<sizeof...(TBindArgs)>{});
-        }
-
-    private:
-        template<std::size_t... I>
-        TReturn Invoke(TArgs&&... args, std::index_sequence<I...>) const
-        {
-            return std::invoke(m_func, m_cls, std::forward<TArgs>(args)..., std::get<I>(m_bindArgs)...);
-        }
-
-        TClass* m_cls;
-        MemberFuncPtr<TClass, TBindArgs...> m_func;
-        std::tuple<TBindArgs...> m_bindArgs;
-    };
-
-    template<typename TClass, typename... TBindArgs>
-    class MemberDelegateStorageConst : public StorageBase
-    {
-    public:
-        MemberDelegateStorageConst(const TClass* cls, const MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-            : m_cls(cls)
-            , m_func(func)
-            , m_bindArgs(std::forward<TBindArgs>(bindArgs)...)
-        {
-        }
-
-        TReturn operator()(TArgs&&... args) const override
-        {
-            return Invoke(std::forward<TArgs>(args)..., std::make_index_sequence<sizeof...(TBindArgs)>{});
-        }
-
-    private:
-        template<std::size_t... I>
-        TReturn Invoke(TArgs&&... args, std::index_sequence<I...>) const
-        {
-            return std::invoke(m_func, m_cls, std::forward<TArgs>(args)..., std::get<I>(m_bindArgs)...);
-        }
-
-        const TClass* m_cls;
-        MemberFuncPtrConst<TClass, TBindArgs...> m_func;
-        std::tuple<TBindArgs...> m_bindArgs;
-    };
-
-    template<typename TFunc, typename... TBindArgs>
-    class LambdaDelegateStorage : public StorageBase
-    {
-    public:
-        LambdaDelegateStorage(TFunc&& func, TBindArgs&&... bindArgs)
-            : m_func(std::forward<TFunc>(func))
-            , m_bindArgs(std::forward<TBindArgs>(bindArgs)...)
-        {
-        }
-
-        TReturn operator()(TArgs&&... args) const override
-        {
-            return Invoke(std::forward<TArgs>(args)..., std::make_index_sequence<sizeof...(TBindArgs)>{});
-        }
-
-    private:
-        template<std::size_t... I>
-        TReturn Invoke(TArgs&&... args, std::index_sequence<I...>) const
-        {
-            return std::invoke(m_func, std::forward<TArgs>(args)..., std::get<I>(m_bindArgs)...);
-        }
-
-        TFunc m_func;
-        std::tuple<TBindArgs...> m_bindArgs;
-    };
-
-public:
-    Delegate(const Delegate&) = delete;
-    Delegate& operator=(const Delegate&) = delete;
-    Delegate(Delegate&&) noexcept = default;
-    Delegate& operator=(Delegate&&) noexcept = default;
-
-    template<typename... TBindArgs>
-    static Delegate CreateGlobal(GlobalFuncPtr<TBindArgs...> func, TBindArgs&&... bindArgs)
-    {
-        return Delegate(new GlobalFuncStorage<TBindArgs...>(func, std::forward<TBindArgs>(bindArgs)...));
+        return 24;
     }
-
-    template<typename TClass, typename... TBindArgs>
-    static Delegate CreateMember(TClass* cls, MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-    {
-        return Delegate(new MemberDelegateStorage<TClass, TBindArgs...>(cls, func, std::forward<TBindArgs>(bindArgs)...));
-    }
-
-    template<typename TClass, typename... TBindArgs>
-    static Delegate CreateMember(const TClass* cls, MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-    {
-        return Delegate(new MemberDelegateStorageConst<TClass, TBindArgs...>(cls, func, std::forward<TBindArgs>(bindArgs)...));
-    }
-
-    template<typename TFunc, typename... TBindArgs>
-    static Delegate CreateLambda(TFunc&& func, TBindArgs&&... bindArgs)
-    {
-        return Delegate(new LambdaDelegateStorage<TFunc, TBindArgs...>(std::forward<TFunc>(func), std::forward<TBindArgs>(bindArgs)...));
-    }
-
-    TReturn operator()(TArgs&&... args) const
-    {
-        return m_storage->operator()(std::forward<TArgs>(args)...);
-    }
-
-private:
-    Delegate(StorageBase* storage)
-        : m_storage(storage) {};
-
-    std::unique_ptr<StorageBase> m_storage;
 };
-} // namespace v1
 
-namespace v2
+namespace detail
 {
-template<typename TReturn, typename... TArgs>
-struct DelegateStackSize
+template<std::size_t StackSize>
+struct DelegateStackStorage
 {
-    static constexpr std::size_t size() { return 24; }
+    DelegateStackStorage() = default;
+
+    std::byte data[StackSize];
 };
+
+struct DelegateHeapStorage
+{
+    DelegateHeapStorage(std::size_t size)
+        : size(size)
+        , data(std::make_unique<std::byte[]>(size))
+    {
+    }
+
+    std::unique_ptr<std::byte[]> data;
+    std::size_t size;
+};
+} // namespace detail
 
 template<typename>
 class Delegate;
@@ -198,217 +49,148 @@ class Delegate<TReturn(TArgs...)>
 {
 public:
     template<typename... TBindArgs>
-    using GlobalFuncPtr = TReturn (*)(TArgs..., TBindArgs...);
+    using GlobalFuncPtr = TReturn (*)(TArgs..., detail::func_param_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., TBindArgs...);
+    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., TBindArgs...) const;
+    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...) const;
 
 public:
+    Delegate() = default;
+
     Delegate(const Delegate&) = delete;
     Delegate& operator=(const Delegate&) = delete;
     Delegate(Delegate&&) noexcept = default;
     Delegate& operator=(Delegate&&) noexcept = default;
 
     template<typename... TBindArgs>
-    static Delegate CreateGlobal(GlobalFuncPtr<TBindArgs...> func, TBindArgs&&... bindArgs)
+    static Delegate CreateGlobal(GlobalFuncPtr<TBindArgs...> func, TBindArgs... bindArgs)
     {
-        return Delegate(GlobalFuncTag{}, func, std::forward<TBindArgs>(bindArgs)...);
+        return Delegate(GlobalFuncTag{}, func, std::move(bindArgs)...);
     }
 
     template<typename TClass, typename... TBindArgs>
-    static Delegate CreateMember(TClass* cls, MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
+    static Delegate CreateMember(TClass* cls, MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs... bindArgs)
     {
-        return Delegate(MemberFuncTag{}, cls, func, std::forward<TBindArgs>(bindArgs)...);
+        return Delegate(MemberFuncTag{}, cls, func, std::move(bindArgs)...);
     }
 
     template<typename TClass, typename... TBindArgs>
-    static Delegate CreateMember(const TClass* cls, MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
+    static Delegate CreateMember(const TClass* cls, MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs... bindArgs)
     {
-        return Delegate(MemberFuncTag{}, cls, func, std::forward<TBindArgs>(bindArgs)...);
+        return Delegate(MemberFuncTag{}, cls, func, std::move(bindArgs)...);
     }
 
     template<typename TFunc, typename... TBindArgs>
-    static Delegate CreateLambda(TFunc&& func, TBindArgs&&... bindArgs)
+    static Delegate CreateLambda(TFunc&& func, TBindArgs... bindArgs)
     {
-        return Delegate(LambdaFuncTag{}, std::forward<TFunc>(func), std::forward<TBindArgs>(bindArgs)...);
+        return Delegate(LambdaFuncTag{}, std::forward<TFunc>(func), std::move(bindArgs)...);
     }
 
-    TReturn operator()(TArgs&&... args) const
+    TReturn operator()(TArgs... args) const
     {
         return m_invoker(GetData(), std::forward<TArgs>(args)...);
     }
 
-    std::size_t GetHeapSize() const
+    operator bool() const
     {
-        return m_heapSize;
+        return m_invoker != nullptr;
     }
 
-    static constexpr std::size_t GetStackSize() { return DelegateStackSize<TReturn, TArgs...>::size(); }
+    std::size_t GetHeapSize() const
+    {
+        if (const auto* heapData = std::get_if<HeapStorage>(&m_storage))
+        {
+            return heapData->size;
+        }
+
+        return 0;
+    }
+
+    static constexpr std::size_t GetStorageStackSize()
+    {
+        return DelegateStorageStackSize<TReturn, TArgs...>::size();
+    }
 
 private:
     struct GlobalFuncTag
-    {
-    };
-
+    {};
     struct MemberFuncTag
-    {
-    };
-
+    {};
     struct LambdaFuncTag
+    {};
+
+    template<typename TSavedArgsTuple>
+    void Construct(TSavedArgsTuple&& v)
     {
-    };
+        if (sizeof(TSavedArgsTuple) > GetStorageStackSize())
+        {
+            m_storage.template emplace<HeapStorage>(sizeof(TSavedArgsTuple));
+        }
+
+        new (GetData()) TSavedArgsTuple(std::forward<TSavedArgsTuple>(v));
+    }
 
     template<typename... TBindArgs>
-    Delegate(GlobalFuncTag, GlobalFuncPtr<TBindArgs...> func, TBindArgs&&... bindArgs)
-        : m_invoker(InvokeGlobalFunc<TBindArgs...>)
+    Delegate(GlobalFuncTag, GlobalFuncPtr<TBindArgs...> func, TBindArgs... bindArgs)
+        : m_invoker(Invoke<1, sizeof...(TBindArgs), std::tuple<GlobalFuncPtr<TBindArgs...>, TBindArgs...>>)
     {
-        // Small Buffer Optimization
-        static constexpr std::size_t kSize = sizeof(GlobalFuncPtr<TBindArgs...>) + sizeof(std::tuple<TBindArgs...>);
-        if constexpr (kSize > GetStackSize())
-        {
-            m_heapSize = kSize;
-            m_heapData = std::make_unique<std::byte[]>(m_heapSize);
-        }
-
-        new (GetData()) GlobalFuncPtr<TBindArgs...>(func);
-        new (GetData(sizeof(GlobalFuncPtr<TBindArgs...>))) std::tuple<TBindArgs...>(std::forward<TBindArgs>(bindArgs)...);
+        Construct(std::make_tuple(func, std::move(bindArgs)...));
     }
 
     template<typename TClass, typename... TBindArgs>
-    Delegate(MemberFuncTag, TClass* cls, MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-        : m_invoker(InvokeMemberFunc<TClass, TBindArgs...>)
+    Delegate(MemberFuncTag, TClass* cls, MemberFuncPtr<TClass, TBindArgs...> func, TBindArgs... bindArgs)
+        : m_invoker(Invoke<2, sizeof...(TBindArgs), std::tuple<MemberFuncPtr<TClass, TBindArgs...>, TClass*, TBindArgs...>>)
     {
-        // Small Buffer Optimization
-        static constexpr std::size_t kSize =
-            sizeof(TClass*) + sizeof(MemberFuncPtr<TClass, TBindArgs...>) + sizeof(std::tuple<TBindArgs...>);
-        if constexpr (kSize > GetStackSize())
-        {
-            m_heapSize = kSize;
-            m_heapData = std::make_unique<std::byte[]>(m_heapSize);
-        }
-
-        new (GetData()) TClass*(cls);
-        new (GetData(sizeof(TClass*))) MemberFuncPtr<TClass, TBindArgs...>(func);
-        new (GetData(sizeof(TClass*) + sizeof(MemberFuncPtr<TClass, TBindArgs...>)))
-            std::tuple<TBindArgs...>(std::forward<TBindArgs>(bindArgs)...);
+        Construct(std::make_tuple(func, cls, std::move(bindArgs)...));
     }
 
     template<typename TClass, typename... TBindArgs>
-    Delegate(MemberFuncTag, const TClass* cls, MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs&&... bindArgs)
-        : m_invoker(InvokeMemberFuncConst<TClass, TBindArgs...>)
+    Delegate(MemberFuncTag, const TClass* cls, MemberFuncPtrConst<TClass, TBindArgs...> func, TBindArgs... bindArgs)
+        : m_invoker(Invoke<2, sizeof...(TBindArgs), std::tuple<MemberFuncPtrConst<TClass, TBindArgs...>, const TClass*, TBindArgs...>>)
     {
-        // Small Buffer Optimization
-        static constexpr std::size_t kSize =
-            sizeof(TClass*) + sizeof(MemberFuncPtrConst<TClass, TBindArgs...>) + sizeof(std::tuple<TBindArgs...>);
-        if constexpr (kSize > GetStackSize())
-        {
-            m_heapSize = kSize;
-            m_heapData = std::make_unique<std::byte[]>(m_heapSize);
-        }
-
-        new (GetData()) const TClass*(cls);
-        new (GetData(sizeof(TClass*))) MemberFuncPtrConst<TClass, TBindArgs...>(func);
-        new (GetData(sizeof(TClass*) + sizeof(MemberFuncPtrConst<TClass, TBindArgs...>)))
-            std::tuple<TBindArgs...>(std::forward<TBindArgs>(bindArgs)...);
+        Construct(std::make_tuple(func, cls, std::move(bindArgs)...));
     }
 
     template<typename TFunc, typename... TBindArgs>
-    Delegate(LambdaFuncTag, TFunc&& func, TBindArgs&&... bindArgs)
-        : m_invoker(InvokeLambda<std::decay_t<TFunc>, TBindArgs...>)
+    Delegate(LambdaFuncTag, TFunc&& func, TBindArgs... bindArgs)
+        : m_invoker(Invoke<1, sizeof...(TBindArgs), std::tuple<TFunc, TBindArgs...>>)
     {
-        // Small Buffer Optimization
-        static constexpr std::size_t kSize = sizeof(TFunc) + sizeof(std::tuple<TBindArgs...>);
-        if constexpr (kSize > GetStackSize())
-        {
-            m_heapSize = kSize;
-            m_heapData = std::make_unique<std::byte[]>(m_heapSize);
-        }
-
-        new (GetData()) std::decay_t<TFunc>(std::forward<TFunc>(func));
-        new (GetData(sizeof(TFunc))) std::tuple<TBindArgs...>(std::forward<TBindArgs>(bindArgs)...);
+        Construct(std::make_tuple(std::forward<TFunc>(func), std::move(bindArgs)...));
     }
 
 private:
-    using InvokeFunc = TReturn (*)(std::byte* /*data*/, TArgs&&... /*args*/);
-    InvokeFunc m_invoker;
+    using StackStorage = detail::DelegateStackStorage<GetStorageStackSize()>;
+    using HeapStorage = detail::DelegateHeapStorage;
 
-    template<typename... TBindArgs>
-    static TReturn InvokeGlobalFunc(std::byte* data, TArgs&&... args)
+    using InvokeFunc = TReturn (*)(std::byte* /*data*/, TArgs... /*args*/);
+    InvokeFunc m_invoker = nullptr;
+
+    template<std::size_t FuncArgsSize, std::size_t BindArgsSize, typename TSavedArgsTuple>
+    static TReturn Invoke(std::byte* data, TArgs... args)
     {
-        auto& func = *reinterpret_cast<GlobalFuncPtr<TBindArgs...>*>(data);
-        std::tuple<TBindArgs...>& bindArgs = *reinterpret_cast<std::tuple<TBindArgs...>*>(data + sizeof(GlobalFuncPtr<TBindArgs...>));
-        return InvokeGlobalFuncInternal(func, std::forward<TArgs>(args)..., bindArgs, std::make_index_sequence<sizeof...(TBindArgs)>{});
+        auto& savedArgsTuple = *reinterpret_cast<TSavedArgsTuple*>(data);
+        return InvokeInternal(savedArgsTuple, std::make_index_sequence<FuncArgsSize>(),
+                              detail::make_index_sequence<FuncArgsSize, BindArgsSize>(), std::forward<TArgs>(args)...);
     }
 
-    template<typename... TBindArgs, std::size_t... I>
-    static TReturn InvokeGlobalFuncInternal(GlobalFuncPtr<TBindArgs...>& func, TArgs&&... args, std::tuple<TBindArgs...>& bindArgs,
-                                            std::index_sequence<I...>)
+    template<typename TSavedArgsTuple, std::size_t... FuncIs, std::size_t... BindIs>
+    static TReturn InvokeInternal(TSavedArgsTuple& savedArgsTuple, std::index_sequence<FuncIs...>, std::index_sequence<BindIs...>,
+                                  TArgs... args)
     {
-        return std::invoke(func, std::forward<TArgs>(args)..., std::get<I>(bindArgs)...);
-    }
-
-    template<typename TClass, typename... TBindArgs>
-    static TReturn InvokeMemberFunc(std::byte* data, TArgs&&... args)
-    {
-        auto* cls = *reinterpret_cast<TClass**>(data);
-        auto& func = *reinterpret_cast<MemberFuncPtr<TClass, TBindArgs...>*>(data + sizeof(TClass*));
-        std::tuple<TBindArgs...>& bindArgs =
-            *reinterpret_cast<std::tuple<TBindArgs...>*>(data + sizeof(TClass*) + sizeof(MemberFuncPtr<TClass, TBindArgs...>));
-        return InvokeMemberFuncInternal(*cls, func, std::forward<TArgs>(args)..., bindArgs,
-                                        std::make_index_sequence<sizeof...(TBindArgs)>{});
-    }
-
-    template<typename TClass, typename... TBindArgs, std::size_t... I>
-    static TReturn InvokeMemberFuncInternal(TClass& cls, MemberFuncPtr<TClass, TBindArgs...>& func, TArgs&&... args,
-                                            std::tuple<TBindArgs...>& bindArgs, std::index_sequence<I...>)
-    {
-        return std::invoke(func, cls, std::forward<TArgs>(args)..., std::get<I>(bindArgs)...);
-    }
-
-    template<typename TClass, typename... TBindArgs>
-    static TReturn InvokeMemberFuncConst(std::byte* data, TArgs&&... args)
-    {
-        const auto* cls = *reinterpret_cast<const TClass**>(data);
-        auto& func = *reinterpret_cast<MemberFuncPtrConst<TClass, TBindArgs...>*>(data + sizeof(TClass*));
-        std::tuple<TBindArgs...>& bindArgs =
-            *reinterpret_cast<std::tuple<TBindArgs...>*>(data + sizeof(TClass*) + sizeof(MemberFuncPtrConst<TClass, TBindArgs...>));
-        return InvokeMemberFuncConstInternal(*cls, func, std::forward<TArgs>(args)..., bindArgs,
-                                             std::make_index_sequence<sizeof...(TBindArgs)>{});
-    }
-
-    template<typename TClass, typename... TBindArgs, std::size_t... I>
-    static TReturn InvokeMemberFuncConstInternal(const TClass& cls, MemberFuncPtrConst<TClass, TBindArgs...>& func, TArgs&&... args,
-                                                 std::tuple<TBindArgs...>& bindArgs, std::index_sequence<I...>)
-    {
-        return std::invoke(func, cls, std::forward<TArgs>(args)..., std::get<I>(bindArgs)...);
-    }
-
-    template<typename TFunc, typename... TBindArgs>
-    static TReturn InvokeLambda(std::byte* data, TArgs&&... args)
-    {
-        TFunc& func = *reinterpret_cast<TFunc*>(data);
-        std::tuple<TBindArgs...>& bindArgs = *reinterpret_cast<std::tuple<TBindArgs...>*>(data + sizeof(TFunc));
-        return InvokeLambdaInternal(func, std::forward<TArgs>(args)..., bindArgs, std::make_index_sequence<sizeof...(TBindArgs)>{});
-    }
-
-    template<typename TFunc, typename... TBindArgs, std::size_t... I>
-    static TReturn InvokeLambdaInternal(TFunc& func, TArgs&&... args, std::tuple<TBindArgs...>& bindArgs, std::index_sequence<I...>)
-    {
-        return std::invoke(func, std::forward<TArgs>(args)..., std::get<I>(bindArgs)...);
+        return std::invoke(std::get<FuncIs>(savedArgsTuple)..., std::forward<TArgs>(args)..., std::get<BindIs>(savedArgsTuple)...);
     }
 
     std::byte* GetData(std::size_t offset = 0) const
     {
-        return m_heapSize > 0 ? (m_heapData.get() + offset) : const_cast<std::byte*>(&m_stackData[offset]);
+        if (auto* stack = std::get_if<StackStorage>(&m_storage))
+        {
+            return const_cast<std::byte*>(&stack->data[offset]);
+        }
+
+        return std::get<HeapStorage>(m_storage).data.get() + offset;
     }
 
-    std::byte m_stackData[GetStackSize()];
-    std::size_t m_heapSize = 0;
-    std::unique_ptr<std::byte[]> m_heapData;
+    std::variant<StackStorage, HeapStorage> m_storage;
 };
-} // namespace v2
-
-using v1::Delegate;
-
 } // namespace sdaineka

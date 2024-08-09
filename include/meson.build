@@ -1,3 +1,9 @@
+headers = [
+    'detail.hpp',
+    'delegate.hpp',
+    'simple_heap_delegate.hpp'
+]
+
 delegates_dep = declare_dependency(
-    sources: 'delegate.hpp',
+    sources: headers,
     include_directories: inc)

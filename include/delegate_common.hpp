@@ -17,8 +17,14 @@ constexpr auto make_index_sequence()
 {
     return add_offset<Offset>(std::make_index_sequence<N>());
 }
+} // namespace detail
 
 template<typename T>
-using func_param_t = std::conditional_t<std::is_pod_v<T> || std::is_pointer_v<T>, T, const T&>;
-} // namespace detail
+struct DelegateBindArg
+{
+    using type = std::conditional_t<(sizeof(T) <= sizeof(void*)), T, const T&>;
+};
+
+template<typename T>
+using delegate_bind_arg_t = typename DelegateBindArg<T>::type;
 } // namespace sdaineka

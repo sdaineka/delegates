@@ -97,7 +97,7 @@ public:
 };
 
 template<>
-struct sdaineka::DelegateStorageStackSize<std::string, const std::string&>
+struct sdaineka::DelegateStorageStackSize<std::string(const std::string&)>
 {
     static constexpr std::size_t size()
     {
@@ -105,9 +105,9 @@ struct sdaineka::DelegateStorageStackSize<std::string, const std::string&>
     }
 };
 
-static void test_add_int(const int value, const int bindValue, const int callValue)
+template<typename T>
+static void test_add_value(const T value, const T bindValue, const T callValue)
 {
-    using T = int;
     using BarType = Bar<T>;
 
     BarType bar(value);
@@ -166,9 +166,9 @@ static void test_add_int(const int value, const int bindValue, const int callVal
     }
 }
 
-static void test_add_string(const std::string& value, const std::string& bindValue, const std::string& callValue)
+template<typename T>
+static void test_add_ref_value(const T& value, const T& bindValue, const T& callValue)
 {
-    using T = std::string;
     using BarType = Bar<T>;
 
     BarType bar(value);
@@ -191,7 +191,8 @@ static void test_add_string(const std::string& value, const std::string& bindVal
         for (int i = 0; i < delegates.size(); i++)
         {
             const auto& d = delegates[i];
-            std::cout << "std::function[" << i << "] - value: " << d(callValue) << ", size: " << sizeof(d) << '\n';
+            d(callValue);
+            std::cout << "std::function[" << i << "] - size: " << sizeof(d) << '\n';
         }
     }
 
@@ -211,7 +212,8 @@ static void test_add_string(const std::string& value, const std::string& bindVal
         for (int i = 0; i < delegates.size(); i++)
         {
             const auto& d = delegates[i];
-            std::cout << "SimpleHeapDelegate[" << i << "] - value: " << d(callValue) << ", size: " << sizeof(d)
+            d(callValue);
+            std::cout << "SimpleHeapDelegate[" << i << "] - size: " << sizeof(d)
                       << ", heapSize: " << d.GetHeapSize() << '\n';
         }
     }
@@ -232,19 +234,50 @@ static void test_add_string(const std::string& value, const std::string& bindVal
         for (int i = 0; i < delegates.size(); i++)
         {
             const auto& d = delegates[i];
-            std::cout << "Delegate[" << i << "] - value: " << d(callValue) << ", size: " << sizeof(d) << ", heapSize: " << d.GetHeapSize()
+            d(callValue);
+            std::cout << "Delegate[" << i << "] - size: " << sizeof(d) << ", heapSize: " << d.GetHeapSize()
                       << '\n';
         }
     }
 }
 
+struct buffer
+{
+    static constexpr std::size_t kSize = 10;
+    char data[kSize];
+};
+
+buffer operator+(const buffer& lhs, const buffer& rhs)
+{
+    buffer buf;
+
+    for (int i = 0; i < buffer::kSize; i++)
+    {
+        buf.data[i] = lhs.data[i] + rhs.data[i];
+    }
+
+    return buf;
+}
+
 int main(int argc, char* argv[])
 {
     std::cout << "test_add(int)\n";
-    test_add_int(5, 5, 5);
+    test_add_value(5, 5, 5);
 
     std::cout << "test_add(std::string)\n";
-    test_add_string(std::string("hello"), std::string("stan"), std::string("longlonglonglonglonglonglonglonglonglonglongstring"));
+    test_add_ref_value(std::string("hello"), std::string("stan"), std::string("longlonglonglonglonglonglonglonglonglonglongstring"));
+
+    
+    buffer b1, b2, b3;
+    for (int i = 0; i < buffer::kSize; i++)
+    {
+        b1.data[i] = (i + 1) * 5;
+        b2.data[i] = (i + 7) * 7;
+        b3.data[i] = (i + 11) * 11;
+    }
+
+    std::cout << "test_add(POD buffer)\n";
+    test_add_ref_value(b1, b2, b3);
 
     return 0;
 }

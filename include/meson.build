@@ -1,5 +1,5 @@
 headers = [
-    'detail.hpp',
+    'delegate_common.hpp',
     'delegate.hpp',
     'simple_heap_delegate.hpp'
 ]

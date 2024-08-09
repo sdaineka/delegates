@@ -1,5 +1,5 @@
 #pragma once
-#include "detail.hpp"
+#include "delegate_common.hpp"
 
 #include <memory>
 #include <type_traits>
@@ -15,11 +15,11 @@ class SimpleHeapDelegate<TReturn(TArgs...)>
 {
 public:
     template<typename... TBindArgs>
-    using GlobalFuncPtr = TReturn (*)(TArgs..., detail::func_param_t<TBindArgs>...);
+    using GlobalFuncPtr = TReturn (*)(TArgs..., delegate_bind_arg_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...);
+    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., delegate_bind_arg_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...) const;
+    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., delegate_bind_arg_t<TBindArgs>...) const;
 
 private:
     class StorageBase

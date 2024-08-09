@@ -1,5 +1,5 @@
 #pragma once
-#include "detail.hpp"
+#include "delegate_common.hpp"
 
 #include <memory>
 #include <tuple>
@@ -9,15 +9,6 @@
 
 namespace sdaineka
 {
-template<typename TReturn, typename... TArgs>
-struct DelegateStorageStackSize
-{
-    static constexpr std::size_t size()
-    {
-        return 24;
-    }
-};
-
 namespace detail
 {
 template<std::size_t StackSize>
@@ -42,6 +33,15 @@ struct DelegateHeapStorage
 } // namespace detail
 
 template<typename>
+struct DelegateStorageStackSize
+{
+    static constexpr std::size_t size()
+    {
+        return 24;
+    }
+};
+
+template<typename>
 class Delegate;
 
 template<typename TReturn, typename... TArgs>
@@ -49,11 +49,11 @@ class Delegate<TReturn(TArgs...)>
 {
 public:
     template<typename... TBindArgs>
-    using GlobalFuncPtr = TReturn (*)(TArgs..., detail::func_param_t<TBindArgs>...);
+    using GlobalFuncPtr = TReturn (*)(TArgs..., delegate_bind_arg_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...);
+    using MemberFuncPtr = TReturn (TClass::*)(TArgs..., delegate_bind_arg_t<TBindArgs>...);
     template<typename TClass, typename... TBindArgs>
-    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., detail::func_param_t<TBindArgs>...) const;
+    using MemberFuncPtrConst = TReturn (TClass::*)(TArgs..., delegate_bind_arg_t<TBindArgs>...) const;
 
 public:
     Delegate() = default;
@@ -109,7 +109,7 @@ public:
 
     static constexpr std::size_t GetStorageStackSize()
     {
-        return DelegateStorageStackSize<TReturn, TArgs...>::size();
+        return DelegateStorageStackSize<TReturn(TArgs...)>::size();
     }
 
 private:

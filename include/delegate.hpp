@@ -123,7 +123,7 @@ private:
     template<typename TSavedArgsTuple>
     void Construct(TSavedArgsTuple&& v)
     {
-        if (sizeof(TSavedArgsTuple) > GetStorageStackSize())
+        if constexpr (sizeof(TSavedArgsTuple) > GetStorageStackSize())
         {
             m_storage.template emplace<HeapStorage>(sizeof(TSavedArgsTuple));
         }
